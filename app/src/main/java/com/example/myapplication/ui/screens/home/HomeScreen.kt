@@ -94,7 +94,7 @@ fun HomeScreen() {
         }
         Spacer(modifier = Modifier.height(32.dp))
 
-        // --- TITLE & STATUS ---
+
         Text(
             text = "PhishGuard",
             style = MaterialTheme.typography.displaySmall,
@@ -110,7 +110,7 @@ fun HomeScreen() {
 
         Spacer(modifier = Modifier.height(48.dp))
 
-        // --- LIVE STATS (Wait for Backend) ---
+
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceEvenly

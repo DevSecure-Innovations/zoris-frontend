@@ -21,6 +21,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.myapplication.data.model.ScanResult
 import com.example.myapplication.viewmodel.DashboardViewModel
 
+/*FIXME: This screen reads the messages from background when the protection is disabled from the app */
+
 @Composable
 fun DashboardScreen(viewModel: DashboardViewModel = viewModel()) {
     val state by viewModel.uiState.collectAsState()

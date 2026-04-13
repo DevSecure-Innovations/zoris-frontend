@@ -1,6 +1,5 @@
 package com.example.myapplication.receiver
 
-// --- ALL REQUIRED IMPORTS ---
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.BroadcastReceiver
@@ -11,6 +10,14 @@ import android.provider.Telephony
 import android.util.Log
 import android.widget.Toast
 import androidx.core.app.NotificationCompat
+// --- ADDED IMPORTS FOR DATABASE ---
+import com.example.myapplication.data.AppDatabase
+import com.example.myapplication.data.model.ThreatEntity
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.*
 
 class SmsReceiver : BroadcastReceiver() {
 
@@ -30,43 +37,65 @@ class SmsReceiver : BroadcastReceiver() {
 
                 if (isSuspicious) {
                     val fakeConfidence = 98
+
+                    // 1. Show the Notification (Your existing logic)
                     showThreatNotification(context, sender, fakeConfidence)
+
+                    // 2. Save to Local Database (The "Documenting" part)
+                    saveThreatToLocalDatabase(context, sender, messageBody)
+
                 } else {
-                    // Just for testing, show a toast for safe messages
                     Toast.makeText(context, "Safe message from $sender", Toast.LENGTH_SHORT).show()
                 }
             }
         }
     }
 
-    // --- BUILDS AND SHOWS THE ANDROID NOTIFICATION ---
-    // Notice how this function is INSIDE the SmsReceiver class now!
+    // --- NEW: LOGIC TO SAVE THREAT TO LOCAL MACHINE ---
+    private fun saveThreatToLocalDatabase(context: Context, sender: String, body: String) {
+        val db = AppDatabase.getDatabase(context)
+        val currentTime = SimpleDateFormat("HH:mm, dd MMM", Locale.getDefault()).format(Date())
+
+        val newThreat = ThreatEntity(
+            sender = sender,
+            snippet = body,
+            time = currentTime
+        )
+
+        // We use Dispatchers.IO because we are writing to the local storage
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                db.threatDao().insertThreat(newThreat)
+                Log.d("PhishGuard_DB", "Threat successfully documented in local DB")
+            } catch (e: Exception) {
+                Log.e("PhishGuard_DB", "Failed to save threat: ${e.message}")
+            }
+        }
+    }
+
     private fun showThreatNotification(context: Context, sender: String, percentage: Int) {
         val channelId = "phishguard_alerts"
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
-        // 1. Create Notification Channel (Required for Android 8.0+)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 channelId,
                 "Threat Alerts",
-                NotificationManager.IMPORTANCE_HIGH // Drops down from the top
+                NotificationManager.IMPORTANCE_HIGH
             ).apply {
                 description = "Alerts for detected SMS scams"
             }
             notificationManager.createNotificationChannel(channel)
         }
 
-        // 2. Build the Notification UI
         val notification = NotificationCompat.Builder(context, channelId)
-            .setSmallIcon(android.R.drawable.stat_sys_warning) // Built-in warning triangle
+            .setSmallIcon(android.R.drawable.stat_sys_warning)
             .setContentTitle("⚠️ PhishGuard Alert")
             .setContentText("Scam blocked from $sender ($percentage% confidence)")
             .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setAutoCancel(true) // Clears when swiped
+            .setAutoCancel(true)
             .build()
 
-        // 3. Fire the alert!
         notificationManager.notify(sender.hashCode(), notification)
     }
 }

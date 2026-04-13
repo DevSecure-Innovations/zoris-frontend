@@ -1,6 +1,5 @@
 package com.example.myapplication.ui.screens.threats
 
-// --- Core Compose Imports ---
 import android.content.Context
 import android.net.Uri
 import android.widget.Toast
@@ -16,36 +15,57 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-
-// Data model for the UI
-data class ThreatMessage(val id: Int, val sender: String, val snippet: String, val time: String)
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.myapplication.viewmodel.ThreatsViewModel
+import com.example.myapplication.data.model.ThreatEntity
 
 @Composable
-fun ThreatsScreen() {
+fun ThreatsScreen(
+    viewModel: ThreatsViewModel = viewModel()
+) {
     val context = LocalContext.current
     var showExportMenu by remember { mutableStateOf(false) }
+    // State to control the confirmation dialog
+    var showClearDialog by remember { mutableStateOf(false) }
 
-    val detectedThreats = emptyList<ThreatMessage>()
+    val detectedThreats by viewModel.allThreats.collectAsState(initial = emptyList())
+
+    // --- 1. CONFIRMATION DIALOG ---
+    if (showClearDialog) {
+        AlertDialog(
+            onDismissRequest = { showClearDialog = false },
+            title = { Text("Clear All History?") },
+            text = { Text("This will permanently delete all flagged messages. This action cannot be undone.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.clearAllThreats()
+                        showClearDialog = false
+                        Toast.makeText(context, "History cleared", Toast.LENGTH_SHORT).show()
+                    }
+                ) {
+                    Text("Clear All", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showClearDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
 
     // --- FILE EXPORT LAUNCHERS ---
-    // These open the native Android "Save As" screen
     val csvLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->
-        uri?.let {
-            val csvData = generateCsvData(detectedThreats)
-            saveFileToUri(context, it, csvData)
-        }
+        uri?.let { saveFileToUri(context, it, generateCsvData(detectedThreats)) }
     }
 
     val txtLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/plain")) { uri ->
-        uri?.let {
-            val txtData = generateTxtData(detectedThreats)
-            saveFileToUri(context, it, txtData)
-        }
+        uri?.let { saveFileToUri(context, it, generateTxtData(detectedThreats)) }
     }
 
     Column(
@@ -53,7 +73,6 @@ fun ThreatsScreen() {
             .fillMaxSize()
             .padding(16.dp)
     ) {
-        // --- HEADER WITH EXPORT BUTTON ---
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -61,7 +80,6 @@ fun ThreatsScreen() {
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text("Detected Threats", style = MaterialTheme.typography.headlineMedium)
-                // Updated to semantic color for dark mode support
                 Text(
                     "Messages flagged as scams.",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -69,7 +87,6 @@ fun ThreatsScreen() {
                 )
             }
 
-            // Export Menu Button
             Box {
                 IconButton(onClick = { showExportMenu = true }) {
                     Icon(imageVector = Icons.Default.MoreVert, contentDescription = "Export Options")
@@ -92,13 +109,27 @@ fun ThreatsScreen() {
                             txtLauncher.launch("PhishGuard_Report.txt")
                         }
                     )
+
+                    // --- 2. ADDED CLEAR HISTORY OPTION ---
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                    DropdownMenuItem(
+                        text = {
+                            Text(
+                                "Clear History",
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        },
+                        onClick = {
+                            showExportMenu = false
+                            showClearDialog = true
+                        }
+                    )
                 }
             }
         }
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // --- LIST CONTENT ---
         if (detectedThreats.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -110,7 +141,7 @@ fun ThreatsScreen() {
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text("0 Threats Detected", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text("Waiting for backend data...", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+                    Text("Waiting for threats to appear.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
                 }
             }
         } else {
@@ -123,11 +154,9 @@ fun ThreatsScreen() {
     }
 }
 
-// --- UI CARD COMPONENT (DARK MODE FIXED) ---
 @Composable
-fun ThreatCard(threat: ThreatMessage) {
+fun ThreatCard(threat: ThreatEntity) { // Updated parameter type
     Card(
-        // Semantic colors automatically switch based on Light/Dark mode!
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.errorContainer,
             contentColor = MaterialTheme.colorScheme.onErrorContainer
@@ -154,7 +183,6 @@ fun ThreatCard(threat: ThreatMessage) {
                     Text(
                         text = threat.time,
                         style = MaterialTheme.typography.bodySmall,
-                        // Automatically fades the correct text color
                         color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.7f)
                     )
                 }
@@ -170,12 +198,11 @@ fun ThreatCard(threat: ThreatMessage) {
     }
 }
 
-// --- DATA FORMATTING HELPERS ---
+// --- UPDATED DATA FORMATTING HELPERS (Now using ThreatEntity) ---
 
-fun generateCsvData(threats: List<ThreatMessage>): String {
+fun generateCsvData(threats: List<ThreatEntity>): String {
     val builder = StringBuilder()
     builder.append("ID,Sender,Time,Snippet\n")
-
     for (threat in threats) {
         val safeSnippet = threat.snippet.replace("\"", "\"\"")
         builder.append("${threat.id},\"${threat.sender}\",\"${threat.time}\",\"${safeSnippet}\"\n")
@@ -183,10 +210,9 @@ fun generateCsvData(threats: List<ThreatMessage>): String {
     return builder.toString()
 }
 
-fun generateTxtData(threats: List<ThreatMessage>): String {
+fun generateTxtData(threats: List<ThreatEntity>): String {
     val builder = StringBuilder()
     builder.append("--- PHISHGUARD THREAT REPORT ---\n\n")
-
     for (threat in threats) {
         builder.append("Sender: ${threat.sender}\n")
         builder.append("Time: ${threat.time}\n")
@@ -196,17 +222,11 @@ fun generateTxtData(threats: List<ThreatMessage>): String {
     return builder.toString()
 }
 
-// --- FILE WRITING HELPER ---
 fun saveFileToUri(context: Context, uri: Uri, content: String) {
     try {
-        context.contentResolver.openOutputStream(uri)?.use { outputStream ->
-            outputStream.bufferedWriter().use { writer ->
-                writer.write(content)
-            }
-        }
+        context.contentResolver.openOutputStream(uri)?.use { it.write(content.toByteArray()) }
         Toast.makeText(context, "Export Successful", Toast.LENGTH_SHORT).show()
     } catch (e: Exception) {
-        e.printStackTrace()
-        Toast.makeText(context, "Failed to export file", Toast.LENGTH_LONG).show()
+        Toast.makeText(context, "Failed to export", Toast.LENGTH_LONG).show()
     }
 }
