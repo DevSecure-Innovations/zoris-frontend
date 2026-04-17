@@ -7,7 +7,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.items // <-- FIXED: Solves the 'Int' mismatch error!
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Warning
@@ -20,30 +20,32 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.myapplication.viewmodel.ThreatsViewModel
-import com.example.myapplication.data.model.ThreatEntity
+import com.example.myapplication.data.model.ScanResult
+import com.example.myapplication.viewmodel.DashboardViewModel
 
 @Composable
 fun ThreatsScreen(
-    viewModel: ThreatsViewModel = viewModel()
+    viewModel: DashboardViewModel = viewModel()
 ) {
     val context = LocalContext.current
     var showExportMenu by remember { mutableStateOf(false) }
-    // State to control the confirmation dialog
     var showClearDialog by remember { mutableStateOf(false) }
 
-    val detectedThreats by viewModel.allThreats.collectAsState(initial = emptyList())
+    val state by viewModel.uiState.collectAsState()
 
-    // --- 1. CONFIRMATION DIALOG ---
+
+    val detectedThreats = state.realtimeThreats
+
+
     if (showClearDialog) {
         AlertDialog(
             onDismissRequest = { showClearDialog = false },
             title = { Text("Clear All History?") },
-            text = { Text("This will permanently delete all flagged messages. This action cannot be undone.") },
+            text = { Text("This will permanently delete all scanned history. This action cannot be undone.") },
             confirmButton = {
                 TextButton(
                     onClick = {
-                        viewModel.clearAllThreats()
+                        viewModel.clearAllHistory() // <-- FIXED: Updated function name
                         showClearDialog = false
                         Toast.makeText(context, "History cleared", Toast.LENGTH_SHORT).show()
                     }
@@ -59,7 +61,6 @@ fun ThreatsScreen(
         )
     }
 
-    // --- FILE EXPORT LAUNCHERS ---
     val csvLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->
         uri?.let { saveFileToUri(context, it, generateCsvData(detectedThreats)) }
     }
@@ -81,7 +82,7 @@ fun ThreatsScreen(
             Column(modifier = Modifier.weight(1f)) {
                 Text("Detected Threats", style = MaterialTheme.typography.headlineMedium)
                 Text(
-                    "Messages flagged as scams.",
+                    "Intercepted malicious SMS messages.",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     style = MaterialTheme.typography.bodyMedium
                 )
@@ -110,15 +111,9 @@ fun ThreatsScreen(
                         }
                     )
 
-                    // --- 2. ADDED CLEAR HISTORY OPTION ---
                     HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
                     DropdownMenuItem(
-                        text = {
-                            Text(
-                                "Clear History",
-                                color = MaterialTheme.colorScheme.error
-                            )
-                        },
+                        text = { Text("Clear History", color = MaterialTheme.colorScheme.error) },
                         onClick = {
                             showExportMenu = false
                             showClearDialog = true
@@ -141,7 +136,7 @@ fun ThreatsScreen(
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text("0 Threats Detected", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text("Waiting for threats to appear.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+                    Text("Your device is currently secure.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
                 }
             }
         } else {
@@ -155,7 +150,7 @@ fun ThreatsScreen(
 }
 
 @Composable
-fun ThreatCard(threat: ThreatEntity) { // Updated parameter type
+fun ThreatCard(threat: ScanResult) {
     Card(
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.errorContainer,
@@ -179,16 +174,17 @@ fun ThreatCard(threat: ThreatEntity) { // Updated parameter type
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Text(text = threat.sender, fontWeight = FontWeight.Bold)
+                    Text(text = "Suspicious SMS", fontWeight = FontWeight.Bold)
+
                     Text(
-                        text = threat.time,
+                        text = "Confidence: ${threat.confidence}%",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.7f)
                     )
                 }
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = threat.snippet,
+                    text = threat.analysisDetails,
                     style = MaterialTheme.typography.bodyMedium,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis
@@ -198,25 +194,25 @@ fun ThreatCard(threat: ThreatEntity) { // Updated parameter type
     }
 }
 
-// --- UPDATED DATA FORMATTING HELPERS (Now using ThreatEntity) ---
+// --- EXPORT HELPERS ---
 
-fun generateCsvData(threats: List<ThreatEntity>): String {
+fun generateCsvData(threats: List<ScanResult>): String {
     val builder = StringBuilder()
-    builder.append("ID,Sender,Time,Snippet\n")
+    builder.append("ID,Type,Confidence,Details\n")
     for (threat in threats) {
-        val safeSnippet = threat.snippet.replace("\"", "\"\"")
-        builder.append("${threat.id},\"${threat.sender}\",\"${threat.time}\",\"${safeSnippet}\"\n")
+        val safeDetails = threat.analysisDetails.replace("\"", "\"\"")
+        builder.append("${threat.id},\"${threat.type.name}\",\"${threat.confidence}%\",\"${safeDetails}\"\n")
     }
     return builder.toString()
 }
 
-fun generateTxtData(threats: List<ThreatEntity>): String {
+fun generateTxtData(threats: List<ScanResult>): String {
     val builder = StringBuilder()
     builder.append("--- PHISHGUARD THREAT REPORT ---\n\n")
     for (threat in threats) {
-        builder.append("Sender: ${threat.sender}\n")
-        builder.append("Time: ${threat.time}\n")
-        builder.append("Message: ${threat.snippet}\n")
+        builder.append("Type: ${threat.type.name}\n")
+        builder.append("Confidence: ${threat.confidence}%\n")
+        builder.append("Details: ${threat.analysisDetails}\n")
         builder.append("--------------------------------\n")
     }
     return builder.toString()

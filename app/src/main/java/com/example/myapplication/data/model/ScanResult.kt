@@ -1,8 +1,14 @@
 package com.example.myapplication.data.model
 
-// This represents the final verdict after your backend/Gemini analyzes a message
+import java.util.UUID
+
+enum class ScanType { SMS, URL }
+
+
 data class ScanResult(
+    val id: String = UUID.randomUUID().toString(),
+    val type: ScanType,
     val isSafe: Boolean,
-    val confidence: Float,
+    val confidence: Int,
     val analysisDetails: String
 )

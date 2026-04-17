@@ -8,10 +8,11 @@ import android.content.Intent
 import android.os.Build
 import android.provider.Telephony
 import android.util.Log
-import android.widget.Toast
 import androidx.core.app.NotificationCompat
-// --- ADDED IMPORTS FOR DATABASE ---
 import com.example.myapplication.data.AppDatabase
+import com.example.myapplication.data.ScanBridge
+import com.example.myapplication.data.model.ScanResult
+import com.example.myapplication.data.model.ScanType
 import com.example.myapplication.data.model.ThreatEntity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -22,36 +23,58 @@ import java.util.*
 class SmsReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
-        if (intent.action == Telephony.Sms.Intents.SMS_RECEIVED_ACTION) {
-            val messages = Telephony.Sms.Intents.getMessagesFromIntent(intent)
+        // 1. Protection Gate
+        val sharedPrefs = context.getSharedPreferences("phishguard_prefs", Context.MODE_PRIVATE)
+        val isProtectionActive = sharedPrefs.getBoolean("PROTECTION_ACTIVE", false)
 
-            for (sms in messages) {
-                val sender = sms.displayOriginatingAddress ?: "Unknown"
-                val messageBody = sms.displayMessageBody ?: ""
+        if (!isProtectionActive || intent.action != Telephony.Sms.Intents.SMS_RECEIVED_ACTION) {
+            return
+        }
 
-                Log.d("PhishGuard_SMS", "Intercepted: $messageBody")
+        val messages = Telephony.Sms.Intents.getMessagesFromIntent(intent)
 
-                // --- SIMULATING THE AI BACKEND ---
-                val isSuspicious = messageBody.contains("bank", ignoreCase = true) ||
-                        messageBody.contains("scam", ignoreCase = true)
+        for (sms in messages) {
+            val sender = sms.displayOriginatingAddress ?: "Unknown"
+            val messageBody = sms.displayMessageBody ?: ""
 
-                if (isSuspicious) {
-                    val fakeConfidence = 98
+            // 2. Pro AI/Keyword Logic
+            val isScam = analyzeMessage(messageBody)
+            val confidenceScore = if (isScam) 98 else 100
 
-                    // 1. Show the Notification (Your existing logic)
-                    showThreatNotification(context, sender, fakeConfidence)
+            // 3. Create Scan Object
+            val newScan = ScanResult(
+                id = UUID.randomUUID().toString(),
+                type = ScanType.SMS,
+                isSafe = !isScam,
+                confidence = confidenceScore,
+                analysisDetails = "From $sender"
+            )
 
-                    // 2. Save to Local Database (The "Documenting" part)
-                    saveThreatToLocalDatabase(context, sender, messageBody)
+            // --- COUNTER LOGIC ---
+            // 4. ALWAYS report to Bridge (Bumps "Scanned Today" +1)
+            ScanBridge.reportScan(newScan)
 
-                } else {
-                    Toast.makeText(context, "Safe message from $sender", Toast.LENGTH_SHORT).show()
-                }
+            if (isScam) {
+                // 5. ONLY save to DB if malicious (Bumps "Threats Blocked" +1)
+                saveThreatToLocalDatabase(context, sender, messageBody)
+                showThreatNotification(context, sender, confidenceScore)
+                Log.d("PhishGuard_Receiver", "🚨 Threat Blocked from $sender")
+            } else {
+                Log.d("PhishGuard_Receiver", "✅ Safe message processed from $sender")
             }
         }
     }
 
-    // --- NEW: LOGIC TO SAVE THREAT TO LOCAL MACHINE ---
+    private fun analyzeMessage(message: String): Boolean {
+        // Expanded "Pro" keyword list
+        val suspiciousKeywords = listOf(
+            "bank", "urgent", "scam", "verify", "suspended",
+            "login", "action required", "unauthorized", "winner",
+            "gift card", "crypto", "account blocked"
+        )
+        return suspiciousKeywords.any { message.contains(it, ignoreCase = true) }
+    }
+
     private fun saveThreatToLocalDatabase(context: Context, sender: String, body: String) {
         val db = AppDatabase.getDatabase(context)
         val currentTime = SimpleDateFormat("HH:mm, dd MMM", Locale.getDefault()).format(Date())
@@ -62,11 +85,9 @@ class SmsReceiver : BroadcastReceiver() {
             time = currentTime
         )
 
-        // We use Dispatchers.IO because we are writing to the local storage
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 db.threatDao().insertThreat(newThreat)
-                Log.d("PhishGuard_DB", "Threat successfully documented in local DB")
             } catch (e: Exception) {
                 Log.e("PhishGuard_DB", "Failed to save threat: ${e.message}")
             }
@@ -79,23 +100,19 @@ class SmsReceiver : BroadcastReceiver() {
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
-                channelId,
-                "Threat Alerts",
-                NotificationManager.IMPORTANCE_HIGH
-            ).apply {
-                description = "Alerts for detected SMS scams"
-            }
+                channelId, "Threat Alerts", NotificationManager.IMPORTANCE_HIGH
+            ).apply { description = "Alerts for detected SMS scams" }
             notificationManager.createNotificationChannel(channel)
         }
 
         val notification = NotificationCompat.Builder(context, channelId)
             .setSmallIcon(android.R.drawable.stat_sys_warning)
             .setContentTitle("⚠️ PhishGuard Alert")
-            .setContentText("Scam blocked from $sender ($percentage% confidence)")
+            .setContentText("Potential scam from $sender blocked ($percentage% confidence)")
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
             .build()
 
-        notificationManager.notify(sender.hashCode(), notification)
+        notificationManager.notify(System.currentTimeMillis().toInt(), notification)
     }
 }

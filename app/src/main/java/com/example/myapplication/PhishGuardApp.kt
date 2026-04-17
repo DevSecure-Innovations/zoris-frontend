@@ -16,6 +16,10 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 
+// --- NEW IMPORTS ---
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.myapplication.viewmodel.DashboardViewModel
+
 // Import your custom routes and screens
 import com.example.myapplication.ui.navigation.Screen
 import com.example.myapplication.ui.screens.home.HomeScreen
@@ -26,6 +30,9 @@ import com.example.myapplication.ui.screens.dashboard.DashboardScreen
 fun PhishGuardApp() {
     // The engine that remembers your navigation state
     val navController = rememberNavController()
+
+    // Creating this here means it survives as long as the bottom navigation exists
+    val sharedViewModel: DashboardViewModel = viewModel()
 
     // Scaffold provides the structural layout, giving us a slot for the bottom bar
     Scaffold(
@@ -38,13 +45,16 @@ fun PhishGuardApp() {
             modifier = Modifier.padding(innerPadding)
         ) {
             composable(Screen.Home.route) {
-                HomeScreen()
+                // --- 2. PASS THE SHARED VIEWMODEL ---
+                HomeScreen(viewModel = sharedViewModel)
             }
             composable(Screen.Threats.route) {
+                // If ThreatsScreen needs data later, you can pass it here too!
                 ThreatsScreen()
             }
             composable(Screen.Dashboard.route) {
-                DashboardScreen()
+                // --- 3. PASS THE EXACT SAME VIEWMODEL ---
+                DashboardScreen(viewModel = sharedViewModel)
             }
         }
     }
@@ -69,15 +79,10 @@ fun BottomNavigationBar(navController: NavHostController) {
                 selected = currentRoute == screen.route,
                 onClick = {
                     navController.navigate(screen.route) {
-                        // Pop up to the start destination of the graph to
-                        // avoid building up a large stack of destinations
                         popUpTo(navController.graph.findStartDestination().id) {
                             saveState = true
                         }
-                        // Avoid multiple copies of the same destination when
-                        // reselecting the same item
                         launchSingleTop = true
-                        // Restore state when reselecting a previously selected item
                         restoreState = true
                     }
                 }

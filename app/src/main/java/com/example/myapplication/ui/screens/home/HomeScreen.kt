@@ -1,46 +1,48 @@
 package com.example.myapplication.ui.screens.home
 
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.example.myapplication.R
-import androidx.compose.animation.core.*
-import androidx.compose.foundation.border
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.runtime.getValue
-
+import com.example.myapplication.viewmodel.DashboardViewModel
+import androidx.lifecycle.viewmodel.compose.viewModel
 
 @Composable
 fun RadarAnimation(modifier: Modifier = Modifier) {
     val infiniteTransition = rememberInfiniteTransition(label = "RadarTransition")
 
-    // This creates a pulsing scale effect from 1.0 to 2.5
     val pulseScale by infiniteTransition.animateFloat(
         initialValue = 1.0f,
-        targetValue = 2.5f,
+        targetValue = 2.2f,
         animationSpec = infiniteRepeatable(
-            animation = tween(1500, easing = LinearEasing),
+            animation = tween(2000, easing = LinearOutSlowInEasing),
             repeatMode = RepeatMode.Restart
         ),
         label = "PulseScale"
     )
 
-    // This creates a fading effect from 0.5 opacity to 0.0
     val pulseAlpha by infiniteTransition.animateFloat(
-        initialValue = 0.5f,
+        initialValue = 0.6f,
         targetValue = 0.0f,
         animationSpec = infiniteRepeatable(
-            animation = tween(1500, easing = LinearEasing),
+            animation = tween(2000, easing = LinearOutSlowInEasing),
             repeatMode = RepeatMode.Restart
         ),
         label = "PulseAlpha"
@@ -53,89 +55,118 @@ fun RadarAnimation(modifier: Modifier = Modifier) {
                 scaleY = pulseScale
                 alpha = pulseAlpha
             }
-            .border(2.dp, MaterialTheme.colorScheme.primary, CircleShape)
-            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f), CircleShape)
+            .border(2.dp, Color(0xFF81C784), CircleShape) // Pro Green Border
+            .background(Color(0xFF81C784).copy(alpha = 0.1f), CircleShape)
     )
 }
 
 @Composable
-fun HomeScreen() {
+fun HomeScreen(viewModel: DashboardViewModel = viewModel()) {
+    val state by viewModel.uiState.collectAsState()
+
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .background(Color(0xFF0F0F12)) // Deep Dark Background
             .padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-// --- LOGO SECTION ---
+
         Box(
-            modifier = Modifier
-                .size(200.dp), // Overall container size
+            modifier = Modifier.size(220.dp),
             contentAlignment = Alignment.Center
         ) {
-            // 1. The Radar Pulse (Placed behind the logo)
-            RadarAnimation(modifier = Modifier.size(100.dp))
+            RadarAnimation(modifier = Modifier.size(120.dp))
 
-            // 2. The Logo itself
-            Box(
-                modifier = Modifier
-                    .size(120.dp)
-                    .clip(CircleShape)
-                    .background(Color.White) // Gives the logo a clean solid base
-                    .padding(10.dp),
-                contentAlignment = Alignment.Center
+
+            Surface(
+                modifier = Modifier.size(140.dp),
+                shape = CircleShape,
+                color = Color(0xFF1A1A1E),
+                border = BorderStroke(1.dp, Color(0xFF81C784).copy(alpha = 0.2f))
+            ) {}
+
+
+            Surface(
+                modifier = Modifier.size(90.dp),
+                shape = CircleShape,
+                color = Color.White,
+                shadowElevation = 8.dp
             ) {
                 Image(
                     painter = painterResource(id = R.drawable.phishguard_logo),
-                    contentDescription = "PhishGuard Logo",
-                    modifier = Modifier.fillMaxSize()
+                    contentDescription = "Logo",
+                    modifier = Modifier.padding(18.dp),
+                    contentScale = ContentScale.Fit
                 )
             }
         }
+
         Spacer(modifier = Modifier.height(32.dp))
 
-
+        // --- 2. TEXT SECTION ---
         Text(
             text = "PhishGuard",
             style = MaterialTheme.typography.displaySmall,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary
+            fontWeight = FontWeight.ExtraBold,
+            color = Color(0xFF81C784) // The Pro Green
         )
-
         Text(
             text = "AI-Powered Protection",
             style = MaterialTheme.typography.titleMedium,
-            color = Color.Gray
+            color = Color.Gray.copy(alpha = 0.7f),
+            letterSpacing = 1.sp
         )
 
-        Spacer(modifier = Modifier.height(48.dp))
+        Spacer(modifier = Modifier.height(60.dp))
 
 
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceEvenly
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            StatBox(title = "Scanned Today", value = "0")
-            StatBox(title = "Threats Blocked", value = "0")
+
+            StatCard(
+                title = "Scanned Today",
+                value = state.totalScanned.toString(),
+                modifier = Modifier.weight(1f)
+            )
+            StatCard(
+                title = "Threats Blocked",
+                value = state.threatsBlocked.toString(),
+                modifier = Modifier.weight(1f)
+            )
         }
     }
 }
+
 @Composable
-fun StatBox(title: String, value: String) {
+fun StatCard(title: String, value: String, modifier: Modifier = Modifier) {
     Card(
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-        modifier = Modifier.size(110.dp)
+        modifier = modifier.height(110.dp),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E24)), // Charcoal Gray
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(16.dp),
+            modifier = Modifier.fillMaxSize(),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            Text(text = value, style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+            Text(
+                text = value,
+                style = MaterialTheme.typography.headlineLarge,
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFF81C784) // Numbers are Green
+            )
             Spacer(modifier = Modifier.height(4.dp))
-            Text(text = title, style = MaterialTheme.typography.bodySmall, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+            Text(
+                text = title,
+                style = MaterialTheme.typography.labelMedium,
+                color = Color.White.copy(alpha = 0.6f),
+                textAlign = TextAlign.Center
+            )
         }
     }
 }

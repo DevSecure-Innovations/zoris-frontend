@@ -4,8 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.Query
 import kotlinx.coroutines.flow.Flow
-// CRITICAL: You must import the entity here for KSP to see it!
-import com.example.myapplication.data.model.ThreatEntity
+
 
 @Dao
 interface ThreatDao {
