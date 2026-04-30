@@ -10,12 +10,14 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Email
@@ -25,6 +27,7 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.*
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -33,6 +36,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -166,7 +171,7 @@ fun DashboardScreen(viewModel: DashboardViewModel = viewModel()) {
                                 if (state.isScanningUrl) {
                                     CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
                                 } else {
-                                    Icon(Icons.Default.ArrowForward, contentDescription = "Run Scan", tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(20.dp))
+                                    Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "Run Scan", tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(20.dp))
                                 }
                             }
                         }
@@ -228,7 +233,27 @@ fun DashboardScreen(viewModel: DashboardViewModel = viewModel()) {
             }
         } else {
             LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(state.manualScans) { scan -> DashboardThreatItem(scan) }
+                items(state.manualScans) { scan ->
+
+                    // We extract the URL and display details logic here
+                    // so we can pass clean data to the Card and Dialog
+                    val targetUrl = if (scan.isSafe) {
+                        scan.analysisDetails
+                    } else {
+                        scan.analysisDetails.substringAfter("URL: ", scan.analysisDetails)
+                    }
+
+                    val displayDetails = if (scan.isSafe) {
+                        scan.analysisDetails
+                    } else {
+                        scan.analysisDetails.substringBefore(" | URL:")
+                    }
+
+                    DashboardThreatItem(
+                        scan = scan.copy(analysisDetails = displayDetails),
+                        scannedUrl = targetUrl
+                    )
+                }
             }
         }
     }
@@ -262,7 +287,10 @@ fun ProtectionStatusCard(isActive: Boolean, onToggle: (Boolean) -> Unit) {
 }
 
 @Composable
-fun DashboardThreatItem(scan: ScanResult) {
+fun DashboardThreatItem(scan: ScanResult, scannedUrl: String) {
+    // State to control the visibility of the popup dialog
+    var showDialog by remember { mutableStateOf(false) }
+
     val safetyIcon = if (scan.isSafe) Icons.Default.CheckCircle else Icons.Default.Warning
     val typeIcon = if (scan.type == ScanType.URL) Icons.Default.Link else Icons.Default.Email
     val iconColor = if (scan.isSafe) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
@@ -275,7 +303,9 @@ fun DashboardThreatItem(scan: ScanResult) {
     }
 
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { showDialog = true }, // Opens the dialog on click
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
         Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -290,6 +320,85 @@ fun DashboardThreatItem(scan: ScanResult) {
                 Text(text = scan.analysisDetails, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f), maxLines = 2, overflow = TextOverflow.Ellipsis)
             }
         }
+    }
+
+    // The Popup Dialog
+    if (showDialog) {
+        ScanReportDialog(
+            scan = scan,
+            scannedUrl = scannedUrl,
+            onDismiss = { showDialog = false }
+        )
+    }
+}
+
+@Composable
+fun ScanReportDialog(scan: ScanResult, scannedUrl: String, onDismiss: () -> Unit) {
+    val isSafe = scan.isSafe
+    val titleColor = if (isSafe) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+    val statusText = if (isSafe) "VERIFIED SECURE" else "CRITICAL THREAT"
+
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Column(modifier = Modifier.padding(20.dp)) {
+                // Header Row with Title and Close Button
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Scan Report",
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp
+                    )
+                    IconButton(onClick = onDismiss) {
+                        Icon(Icons.Default.Close, contentDescription = "Close", tint = MaterialTheme.colorScheme.onSurface)
+                    }
+                }
+
+                HorizontalDivider(
+                    modifier = Modifier.padding(vertical = 12.dp),
+                    thickness = DividerDefaults.Thickness,
+                    color = MaterialTheme.colorScheme.outlineVariant
+                )
+
+                // Detail Rows
+                ReportDetailRow(label = "Target", value = scannedUrl)
+                ReportDetailRow(
+                    label = "Security Status",
+                    value = statusText,
+                    valueColor = titleColor
+                )
+                ReportDetailRow(label = "Analysis Details", value = scan.analysisDetails)
+                ReportDetailRow(label = "Confidence Score", value = "${scan.confidence}%")
+                ReportDetailRow(label = "Scan ID", value = scan.id, isSmall = true)
+                ReportDetailRow(label = "Source", value = if (scan.type == ScanType.URL) "Manual Web Scan" else "SMS Intercept", isSmall = true)
+            }
+        }
+    }
+}
+
+@Composable
+fun ReportDetailRow(label: String, value: String, valueColor: Color = Color.Unspecified, isSmall: Boolean = false) {
+    Column(modifier = Modifier.padding(vertical = 6.dp)) {
+        Text(
+            text = label,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.SemiBold
+        )
+        Text(
+            text = value,
+            color = if (valueColor == Color.Unspecified) MaterialTheme.colorScheme.onSurface else valueColor,
+            fontSize = if (isSmall) 11.sp else 14.sp,
+            fontWeight = FontWeight.Medium
+        )
     }
 }
 

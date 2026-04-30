@@ -112,16 +112,20 @@ class DashboardViewModel(
             when (val result = repository.checkUrl(url)) {
                 is Resource.Success -> {
                     val scanDetails = result.data?.result
-                    val isSafe = scanDetails?.isPhishing == false
+
+                    val isSafe = scanDetails?.isSafeFromServer ?: true
 
                     incrementTotalScanned()
+
+                    val threatString = scanDetails?.threatList?.joinToString(", ") ?: "Unknown Malware"
 
                     val newResult = ScanResult(
                         id = UUID.randomUUID().toString(),
                         type = ScanType.URL,
                         isSafe = isSafe,
-                        confidence = if (isSafe) 100 else 95,
-                        analysisDetails = scanDetails?.threatDetails ?: url
+                        confidence = if (isSafe) 100 else 98,
+                        // Combine the Threat and URL for the Dialog
+                        analysisDetails = if (isSafe) url else "Threat: $threatString | URL: $url"
                     )
 
                     _uiState.update { currentState ->
@@ -131,7 +135,7 @@ class DashboardViewModel(
                         currentState.copy(
                             isScanningUrl = false,
                             isUrlSafe = isSafe,
-                            urlScanResult = if (isSafe) "Link is Safe" else "Threat: ${scanDetails?.riskLevel}",
+                            urlScanResult = if (isSafe) "Link is Safe" else " Detected Threat",
                             manualScans = updatedManualList,
                             threatsBlocked = totalBlocked
                         )
@@ -148,7 +152,6 @@ class DashboardViewModel(
             }
         }
     }
-
     fun clearAllHistory() {
         _uiState.update { it.copy(
             manualScans = emptyList(),
@@ -163,11 +166,7 @@ class DashboardViewModel(
             try {
                 val db = AppDatabase.getDatabase(getApplication())
                 db.threatDao().deleteAllThreats()
-
-                sharedPrefs.edit(commit = true) {
-                    putInt("TOTAL_SCANS_COUNT", 0)
-                }
-                Log.d("PhishGuard_VM", "All data wiped successfully.")
+                sharedPrefs.edit(commit = true) { putInt("TOTAL_SCANS_COUNT", 0) }
             } catch (e: Exception) {
                 Log.e("PhishGuard_VM", "Error during wipe: ${e.message}")
             }

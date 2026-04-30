@@ -1,7 +1,6 @@
 package com.example.myapplication.data.model
 
 import java.util.UUID
-
 enum class ScanType { SMS, URL }
 
 

@@ -1,13 +1,20 @@
 package com.example.myapplication.data.model
 
+import com.google.gson.annotations.SerializedName
+
 /* { "url": "https://..." } */
 data class UrlScanRequest(val url: String)
 
 /* { "result": { "isPhishing": true, ... } } */
-data class ScanResultContainer(val result: ScanDetails)
+data class ScanResultContainer(
+    @SerializedName("result")
+    val result: ScanDetails
+)
 
 data class ScanDetails(
-    val isPhishing: Boolean,
-    val riskLevel: String,
-    val threatDetails: String?
+    @SerializedName("safe")
+    val isSafeFromServer: Boolean,
+
+    @SerializedName("threats")
+    val threatList: List<String>?
 )

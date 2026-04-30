@@ -68,4 +68,5 @@ dependencies {
     implementation(libs.retrofit)
     implementation(libs.converter.gson)
     implementation(libs.androidx.core.splashscreen)
+    implementation(libs.logging.interceptor)
 }

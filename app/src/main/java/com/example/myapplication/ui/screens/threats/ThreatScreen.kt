@@ -5,6 +5,7 @@ import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,12 +19,15 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Divider
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
@@ -40,11 +44,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import com.example.myapplication.data.model.ScanResult
+import com.example.myapplication.data.model.ScanType
 import com.example.myapplication.viewmodel.DashboardViewModel
 
 @Composable
@@ -118,17 +126,17 @@ fun ThreatsScreen(viewModel: DashboardViewModel) {
                     onDismissRequest = { showExportMenu = false }
                 ) {
                     DropdownMenuItem(
-                        text = { Text("Export as CSV (Excel)") },
+                        text = { Text("Export as CSV") },
                         onClick = {
                             showExportMenu = false
-                            csvLauncher.launch("PhishGuard_Report.csv")
+                            csvLauncher.launch("Zoris_Report.csv")
                         }
                     )
                     DropdownMenuItem(
                         text = { Text("Export as TXT") },
                         onClick = {
                             showExportMenu = false
-                            txtLauncher.launch("PhishGuard_Report.txt")
+                            txtLauncher.launch("Zoris_Report.txt")
                         }
                     )
 
@@ -163,7 +171,18 @@ fun ThreatsScreen(viewModel: DashboardViewModel) {
         } else {
             LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 items(detectedThreats) { threat ->
-                    ThreatCard(threat)
+                    val sender = if (threat.analysisDetails.contains("From ")) {
+                        threat.analysisDetails.substringAfter("From ").substringBefore(":")
+                    } else "Unknown Sender"
+
+                    val messageSnippet = if (threat.analysisDetails.contains(": ")) {
+                        threat.analysisDetails.substringAfter(": ")
+                    } else threat.analysisDetails
+
+                    ThreatCard(
+                        threat = threat.copy(analysisDetails = messageSnippet),
+                        sourceTarget = sender
+                    )
                 }
             }
         }
@@ -171,13 +190,17 @@ fun ThreatsScreen(viewModel: DashboardViewModel) {
 }
 
 @Composable
-fun ThreatCard(threat: ScanResult) {
+fun ThreatCard(threat: ScanResult, sourceTarget: String) {
+    var showDialog by remember { mutableStateOf(false) }
+
     Card(
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.errorContainer,
             contentColor = MaterialTheme.colorScheme.onErrorContainer
         ),
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { showDialog = true } // Opens the dialog
     ) {
         Row(
             modifier = Modifier.padding(16.dp),
@@ -213,6 +236,80 @@ fun ThreatCard(threat: ScanResult) {
             }
         }
     }
+
+    if (showDialog) {
+        ScanReportDialog(
+            scan = threat,
+            scannedUrl = sourceTarget,
+            onDismiss = { showDialog = false }
+        )
+    }
+}
+
+@Composable
+fun ScanReportDialog(scan: ScanResult, scannedUrl: String, onDismiss: () -> Unit) {
+    val isSafe = scan.isSafe
+    val titleColor = if (isSafe) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+    val statusText = if (isSafe) "VERIFIED SECURE" else "CRITICAL THREAT"
+    val sourceText = if (scan.type == ScanType.URL) "Manual Web Scan" else "SMS Intercept"
+    val targetLabel = if (scan.type == ScanType.URL) "Target URL" else "Sender ID"
+
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Column(modifier = Modifier.padding(20.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Threat Report",
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp
+                    )
+                    IconButton(onClick = onDismiss) {
+                        Icon(Icons.Default.Close, contentDescription = "Close", tint = MaterialTheme.colorScheme.onSurface)
+                    }
+                }
+
+                Divider(color = MaterialTheme.colorScheme.outlineVariant, modifier = Modifier.padding(vertical = 12.dp))
+
+                ReportDetailRow(label = targetLabel, value = scannedUrl)
+                ReportDetailRow(
+                    label = "Security Status",
+                    value = statusText,
+                    valueColor = titleColor
+                )
+                ReportDetailRow(label = "Message Content", value = scan.analysisDetails)
+                ReportDetailRow(label = "Confidence Score", value = "${scan.confidence}%")
+                ReportDetailRow(label = "Scan ID", value = scan.id, isSmall = true)
+                ReportDetailRow(label = "Source", value = sourceText, isSmall = true)
+            }
+        }
+    }
+}
+
+@Composable
+fun ReportDetailRow(label: String, value: String, valueColor: Color = Color.Unspecified, isSmall: Boolean = false) {
+    Column(modifier = Modifier.padding(vertical = 6.dp)) {
+        Text(
+            text = label,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.SemiBold
+        )
+        Text(
+            text = value,
+            color = if (valueColor == Color.Unspecified) MaterialTheme.colorScheme.onSurface else valueColor,
+            fontSize = if (isSmall) 11.sp else 14.sp,
+            fontWeight = FontWeight.Medium
+        )
+    }
 }
 
 fun generateCsvData(threats: List<ScanResult>): String {
@@ -227,7 +324,7 @@ fun generateCsvData(threats: List<ScanResult>): String {
 
 fun generateTxtData(threats: List<ScanResult>): String {
     val builder = StringBuilder()
-    builder.append("--- PHISHGUARD THREAT REPORT ---\n\n")
+    builder.append("--- ZORIS THREAT REPORT ---\n\n")
     for (threat in threats) {
         builder.append("Type: ${threat.type.name}\n")
         builder.append("Confidence: ${threat.confidence}%\n")
