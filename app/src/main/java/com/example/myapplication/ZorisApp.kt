@@ -15,51 +15,37 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-
-// --- NEW IMPORTS ---
-import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.myapplication.viewmodel.DashboardViewModel
-
-// Import your custom routes and screens
 import com.example.myapplication.ui.navigation.Screen
+import com.example.myapplication.ui.screens.dashboard.DashboardScreen
 import com.example.myapplication.ui.screens.home.HomeScreen
 import com.example.myapplication.ui.screens.threats.ThreatsScreen
-import com.example.myapplication.ui.screens.dashboard.DashboardScreen
+import com.example.myapplication.viewmodel.DashboardViewModel
 
 @Composable
-fun PhishGuardApp() {
-    // The engine that remembers your navigation state
+fun PhishGuardApp(sharedViewModel: DashboardViewModel) {
+
     val navController = rememberNavController()
 
-    // Creating this here means it survives as long as the bottom navigation exists
-    val sharedViewModel: DashboardViewModel = viewModel()
-
-    // Scaffold provides the structural layout, giving us a slot for the bottom bar
     Scaffold(
         bottomBar = { BottomNavigationBar(navController) }
     ) { innerPadding ->
-        // NavHost handles swapping the actual UI based on the route
         NavHost(
             navController = navController,
             startDestination = Screen.Home.route,
             modifier = Modifier.padding(innerPadding)
         ) {
             composable(Screen.Home.route) {
-                // --- 2. PASS THE SHARED VIEWMODEL ---
                 HomeScreen(viewModel = sharedViewModel)
             }
             composable(Screen.Threats.route) {
-                // If ThreatsScreen needs data later, you can pass it here too!
-                ThreatsScreen()
+                ThreatsScreen(viewModel = sharedViewModel)
             }
             composable(Screen.Dashboard.route) {
-                // --- 3. PASS THE EXACT SAME VIEWMODEL ---
                 DashboardScreen(viewModel = sharedViewModel)
             }
         }
     }
 }
-
 @Composable
 fun BottomNavigationBar(navController: NavHostController) {
     val items = listOf(

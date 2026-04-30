@@ -23,7 +23,6 @@ import java.util.*
 class SmsReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
-        // 1. Protection Gate
         val sharedPrefs = context.getSharedPreferences("phishguard_prefs", Context.MODE_PRIVATE)
         val isProtectionActive = sharedPrefs.getBoolean("PROTECTION_ACTIVE", false)
 
@@ -36,12 +35,9 @@ class SmsReceiver : BroadcastReceiver() {
         for (sms in messages) {
             val sender = sms.displayOriginatingAddress ?: "Unknown"
             val messageBody = sms.displayMessageBody ?: ""
-
-            // 2. Pro AI/Keyword Logic
             val isScam = analyzeMessage(messageBody)
             val confidenceScore = if (isScam) 98 else 100
 
-            // 3. Create Scan Object
             val newScan = ScanResult(
                 id = UUID.randomUUID().toString(),
                 type = ScanType.SMS,
@@ -50,12 +46,9 @@ class SmsReceiver : BroadcastReceiver() {
                 analysisDetails = "From $sender"
             )
 
-            // --- COUNTER LOGIC ---
-            // 4. ALWAYS report to Bridge (Bumps "Scanned Today" +1)
             ScanBridge.reportScan(newScan)
 
             if (isScam) {
-                // 5. ONLY save to DB if malicious (Bumps "Threats Blocked" +1)
                 saveThreatToLocalDatabase(context, sender, messageBody)
                 showThreatNotification(context, sender, confidenceScore)
                 Log.d("PhishGuard_Receiver", "🚨 Threat Blocked from $sender")
@@ -66,7 +59,6 @@ class SmsReceiver : BroadcastReceiver() {
     }
 
     private fun analyzeMessage(message: String): Boolean {
-        // Expanded "Pro" keyword list
         val suspiciousKeywords = listOf(
             "bank", "urgent", "scam", "verify", "suspended",
             "login", "action required", "unauthorized", "winner",

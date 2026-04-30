@@ -49,9 +49,6 @@ fun DashboardScreen(viewModel: DashboardViewModel = viewModel()) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
-    // --- 1. LIFECYCLE OBSERVER ---
-    // This ensures that if a user goes to settings and revokes permissions,
-    // the app immediately notices and turns off protection.
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
@@ -62,7 +59,6 @@ fun DashboardScreen(viewModel: DashboardViewModel = viewModel()) {
                     ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
                 } else true
 
-                // Check if the ViewModel state says we are active, but the OS says we lack permissions
                 if (state.isProtectionActive && (!hasSms || !hasNotif)) {
                     viewModel.toggleProtection(false)
                     setSmsReceiverEnabled(context, false)
@@ -74,7 +70,6 @@ fun DashboardScreen(viewModel: DashboardViewModel = viewModel()) {
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    // --- 2. PERMISSION LAUNCHER ---
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
@@ -95,7 +90,6 @@ fun DashboardScreen(viewModel: DashboardViewModel = viewModel()) {
         }
     }
 
-    // --- MAIN UI LAYOUT ---
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -111,7 +105,6 @@ fun DashboardScreen(viewModel: DashboardViewModel = viewModel()) {
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // A. BACKGROUND PROTECTION TOGGLE
         ProtectionStatusCard(
             isActive = state.isProtectionActive,
             onToggle = { isChecked ->
@@ -130,7 +123,6 @@ fun DashboardScreen(viewModel: DashboardViewModel = viewModel()) {
 
         Spacer(modifier = Modifier.height(32.dp))
 
-        // B. SEARCH BAR STYLE URL SCANNER
         Text(
             text = "Manual Link Scanner",
             style = MaterialTheme.typography.titleMedium,
@@ -190,7 +182,6 @@ fun DashboardScreen(viewModel: DashboardViewModel = viewModel()) {
             )
         )
 
-        // SCAN RESULT BANNER
         state.urlScanResult?.let { result ->
             val resultColor = if (state.isUrlSafe) Color(0xFF4CAF50) else MaterialTheme.colorScheme.error
             Card(
@@ -208,7 +199,6 @@ fun DashboardScreen(viewModel: DashboardViewModel = viewModel()) {
 
         Spacer(modifier = Modifier.height(32.dp))
 
-        // ACTIVITY LOG HEADER
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
@@ -228,7 +218,6 @@ fun DashboardScreen(viewModel: DashboardViewModel = viewModel()) {
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // ACTIVITY LIST WITH EMPTY STATE
         if (state.manualScans.isEmpty()) {
             Box(modifier = Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -278,10 +267,10 @@ fun DashboardThreatItem(scan: ScanResult) {
     val typeIcon = if (scan.type == ScanType.URL) Icons.Default.Link else Icons.Default.Email
     val iconColor = if (scan.isSafe) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
 
-    val titleText = when {
-        scan.type == ScanType.URL && scan.isSafe -> "Safe Link Verified"
-        scan.type == ScanType.URL && !scan.isSafe -> "Malicious URL Blocked"
-        scan.type == ScanType.SMS && scan.isSafe -> "Safe Message Scanned"
+    val titleText = when (scan.type) {
+        ScanType.URL if scan.isSafe -> "Safe Link Verified"
+        ScanType.URL if true -> "Malicious URL Blocked"
+        ScanType.SMS if scan.isSafe -> "Safe Message Scanned"
         else -> "Suspicious Message Intercepted"
     }
 

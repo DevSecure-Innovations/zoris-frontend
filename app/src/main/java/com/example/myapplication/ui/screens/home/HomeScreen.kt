@@ -1,7 +1,6 @@
 package com.example.myapplication.ui.screens.home
 
 import androidx.compose.animation.core.*
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -25,41 +24,59 @@ import com.example.myapplication.viewmodel.DashboardViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
 
 @Composable
-fun RadarAnimation(modifier: Modifier = Modifier) {
-    val infiniteTransition = rememberInfiniteTransition(label = "RadarTransition")
-
-    val pulseScale by infiniteTransition.animateFloat(
-        initialValue = 1.0f,
-        targetValue = 2.2f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(2000, easing = LinearOutSlowInEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "PulseScale"
-    )
-
-    val pulseAlpha by infiniteTransition.animateFloat(
-        initialValue = 0.6f,
-        targetValue = 0.0f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(2000, easing = LinearOutSlowInEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "PulseAlpha"
-    )
+fun NormalPulseAnimation(
+    modifier: Modifier = Modifier,
+    color: Color = MaterialTheme.colorScheme.primary
+) {
+    val infiniteTransition = rememberInfiniteTransition(label = "PulseTransition")
 
     Box(
-        modifier = modifier
-            .graphicsLayer {
-                scaleX = pulseScale
-                scaleY = pulseScale
-                alpha = pulseAlpha
-            }
-            .border(2.dp, Color(0xFF81C784), CircleShape) // Pro Green Border
-            .background(Color(0xFF81C784).copy(alpha = 0.1f), CircleShape)
-    )
-}
+        modifier = modifier,
+        contentAlignment = Alignment.Center
+    ) {
+        for (i in 0 until 2) {
+            val scale by infiniteTransition.animateFloat(
+                initialValue = 0.2f,
+                targetValue = 2.5f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(2000, easing = LinearOutSlowInEasing),
+                    repeatMode = RepeatMode.Restart,
+                    initialStartOffset = StartOffset(offsetMillis = i * 600)
+                ),
+                label = "PulseScale_$i"
+            )
 
+            val alpha by infiniteTransition.animateFloat(
+                initialValue = 1f,
+                targetValue = 0f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(2000, easing = LinearOutSlowInEasing),
+                    repeatMode = RepeatMode.Restart,
+                    initialStartOffset = StartOffset(offsetMillis = i * 600)
+                ),
+                label = "PulseAlpha_$i"
+            )
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer {
+                        scaleX = scale
+                        scaleY = scale
+                        this.alpha = alpha
+                    }
+                    .background(color.copy(alpha = 0.1f), CircleShape)
+                    .border(1.dp, color.copy(alpha = 0.4f), CircleShape)
+            )
+        }
+
+        Image(
+            painter = painterResource(id = R.drawable.logo),
+            contentDescription = "Zoris Logo",
+            modifier = Modifier.size(100.dp),
+            contentScale = ContentScale.Fit
+        )
+    }
+}
 @Composable
 fun HomeScreen(viewModel: DashboardViewModel = viewModel()) {
     val state by viewModel.uiState.collectAsState()
@@ -67,66 +84,48 @@ fun HomeScreen(viewModel: DashboardViewModel = viewModel()) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF0F0F12)) // Deep Dark Background
+            .background(MaterialTheme.colorScheme.background)
             .padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
 
         Box(
-            modifier = Modifier.size(220.dp),
+            modifier = Modifier.size(180.dp),
             contentAlignment = Alignment.Center
         ) {
-            RadarAnimation(modifier = Modifier.size(120.dp))
+            NormalPulseAnimation(modifier = Modifier.size(180.dp))
 
 
-            Surface(
-                modifier = Modifier.size(140.dp),
-                shape = CircleShape,
-                color = Color(0xFF1A1A1E),
-                border = BorderStroke(1.dp, Color(0xFF81C784).copy(alpha = 0.2f))
-            ) {}
-
-
-            Surface(
-                modifier = Modifier.size(90.dp),
-                shape = CircleShape,
-                color = Color.White,
-                shadowElevation = 8.dp
-            ) {
-                Image(
-                    painter = painterResource(id = R.drawable.phishguard_logo),
-                    contentDescription = "Logo",
-                    modifier = Modifier.padding(18.dp),
-                    contentScale = ContentScale.Fit
-                )
-            }
+            Image(
+                painter = painterResource(id = R.drawable.logo),
+                contentDescription = "Zoris Logo",
+                modifier = Modifier.size(100.dp),
+                contentScale = ContentScale.Fit
+            )
         }
 
         Spacer(modifier = Modifier.height(32.dp))
 
-        // --- 2. TEXT SECTION ---
         Text(
-            text = "PhishGuard",
+            text = "Zoris",
             style = MaterialTheme.typography.displaySmall,
             fontWeight = FontWeight.ExtraBold,
-            color = Color(0xFF81C784) // The Pro Green
+            color = MaterialTheme.colorScheme.primary
         )
         Text(
-            text = "AI-Powered Protection",
+            text = "Threat Intelligence",
             style = MaterialTheme.typography.titleMedium,
-            color = Color.Gray.copy(alpha = 0.7f),
+            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
             letterSpacing = 1.sp
         )
 
         Spacer(modifier = Modifier.height(60.dp))
 
-
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-
             StatCard(
                 title = "Scanned Today",
                 value = state.totalScanned.toString(),
@@ -140,13 +139,12 @@ fun HomeScreen(viewModel: DashboardViewModel = viewModel()) {
         }
     }
 }
-
 @Composable
 fun StatCard(title: String, value: String, modifier: Modifier = Modifier) {
     Card(
         modifier = modifier.height(110.dp),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E24)), // Charcoal Gray
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(
@@ -158,13 +156,13 @@ fun StatCard(title: String, value: String, modifier: Modifier = Modifier) {
                 text = value,
                 style = MaterialTheme.typography.headlineLarge,
                 fontWeight = FontWeight.Bold,
-                color = Color(0xFF81C784) // Numbers are Green
+                color = MaterialTheme.colorScheme.primary
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = title,
                 style = MaterialTheme.typography.labelMedium,
-                color = Color.White.copy(alpha = 0.6f),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center
             )
         }
