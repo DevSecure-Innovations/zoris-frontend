@@ -27,6 +27,9 @@ jobs :
 
       - name : Build APK
         run : ./gradlew assembleRelease
+        env :   
+            BASE_URL: ${{ secrets.BASE_URL }}
+             
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2

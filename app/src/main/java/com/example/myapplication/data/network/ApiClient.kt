@@ -5,7 +5,7 @@ import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import java.util.concurrent.TimeUnit
-import com.example.myapplication.Secrets
+import com.example.myapplication.BuildConfig
 
 object ApiClient {
 
@@ -22,7 +22,7 @@ object ApiClient {
 
     val retrofitService: ZorisApi by lazy {
         Retrofit.Builder()
-            .baseUrl(Secrets.BASE_URL)
+            .baseUrl(BuildConfig.BASE_URL)
             .client(client)
             .addConverterFactory(GsonConverterFactory.create())
             .build()

@@ -29,6 +29,11 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+			buildConfigField("String", "BASE_URL", "\"${System.getenv("BASE_URL") ?: ""}\"")
+        }
+        debug {
+            // for local testing
+            buildConfigField("String", "BASE_URL", "\"${System.getenv("BASE_URL") ?: "http://10.0.2.2:3000/"}\"")
         }
     }
     compileOptions {
@@ -37,6 +42,7 @@ android {
     }
     buildFeatures {
         compose = true
+		buildConfig = true
     }
 }
 
